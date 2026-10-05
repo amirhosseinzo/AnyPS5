@@ -2,11 +2,14 @@
 #include "ColorTransferTests.hpp"
 #include <fstream>
 #include "prx/libSceAgcDriver/Execution/include/BdaFeatures.hpp"
+#include "VulkanTestDevice.hpp"
 #include "prx/libSceAgcDriver/Graphics/include/Recorder.hpp"
 #include "prx/libSceAgcDriver/Graphics/include/Resources.hpp"
 #include <SDL_loadso.h>
 #include <array>
+#include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <vector>
 
 namespace AgcDriver::Graphics {
@@ -125,13 +128,22 @@ int main(int argc, char** argv) {
             Require(static_cast<bool>(file), "cannot save BDA test SPIR-V");
             return 0;
         }
-        Device device;
-        Buffer buffer(device.GetContext(), 256, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+        // A missing or unusable device is an environment limitation, not a failure: report it as a
+        // skip so CTest does not record a red run for a machine that simply has no Vulkan device.
+        std::unique_ptr<Device> device;
+        try {
+            device = std::make_unique<Device>();
+        } catch (const std::exception& error) {
+            if (std::getenv("ANYPS5_REQUIRE_VULKAN") != nullptr) throw;
+            std::cout << "BDA device tests skipped: no usable Vulkan device: " << error.what() << '\n';
+            return VulkanTestSkipped;
+        }
+        Buffer buffer(device->GetContext(), 256, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
         Require(buffer.DeviceAddress() != 0 && buffer.Bytes().size() == 256, "invalid real BDA buffer");
         buffer.Bytes()[255] = std::byte{0x5a};
         Require(buffer.Bytes()[255] == std::byte{0x5a}, "real BDA buffer mapping failed");
-        RunBdaExecutionTests(device.GetContext());
-        RunColorTransferTests(device.GetContext());
+        RunBdaExecutionTests(device->GetContext());
+        RunColorTransferTests(device->GetContext());
         std::cout << "Vulkan BDA allocation and execution tests passed\n";
         return 0;
     } catch (const std::exception& error) {

@@ -1,6 +1,13 @@
 #include "prx/libSceAgcDriver/Execution/include/VulkanDevice.hpp"
 #include "Recompiler.hpp"
 #include "prx/libc/include/GuestAllocations.hpp"
+#include "VulkanTestDevice.hpp"
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 #include <array>
 #include <cmath>
 #include <cstdio>
@@ -206,7 +213,11 @@ void CheckTriangles(const char* what) {
 
 int main() {
     try {
-        setenv("APS5_NO_SHADER_DISK_CACHE", "1", 1);
+#ifdef _WIN32
+        Require(_putenv_s("APS5_NO_SHADER_DISK_CACHE", "1") == 0, "cannot set APS5_NO_SHADER_DISK_CACHE");
+#else
+        Require(::setenv("APS5_NO_SHADER_DISK_CACHE", "1", 1) == 0, "cannot set APS5_NO_SHADER_DISK_CACHE");
+#endif
         for (std::uint32_t triangle = 0; triangle < Triangles; ++triangle) {
             const auto vertices = TriangleVertices(triangle);
             for (std::uint32_t k = 0; k < 3; ++k) {
@@ -239,7 +250,7 @@ int main() {
         const auto target = device.Target();
         if (!target.mesh.has_value()) {
             std::puts("Mesh tests skipped: the device has no VK_EXT_mesh_shader");
-            return 0;
+            return VulkanTestSkipped;
         }
 
         for (const auto& [name, subgroup] : {std::pair{"one-wave subgroups", SmallSubgroup}, std::pair{"two-wave subgroups", WideSubgroup}}) {
@@ -253,7 +264,11 @@ int main() {
         }
 
         constexpr std::size_t recordBlockBytes = 65536;
+#ifdef _WIN32
+        auto* record = static_cast<std::uint32_t*>(VirtualAlloc(nullptr, recordBlockBytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+#else
         auto* record = static_cast<std::uint32_t*>(std::aligned_alloc(65536, recordBlockBytes));
+#endif
         Require(record != nullptr, "cannot allocate the indirect record block");
         {
             GuestAllocations::Mutation mutation;
