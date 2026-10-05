@@ -111,7 +111,11 @@ def main():
             elif suggestion in real_names:
                 status = "already-implemented"
             else:
-                status = "rename-ready"
+                # Every stub here exports its own NID through APS5_EXPORT, and
+                # NidResolver computes a NID from the bare symbol name. Renaming
+                # the stub to the suggested name therefore makes two exports
+                # resolve to the same NID and PeNidPatcher rejects the library.
+                status = "not-applicable"
         rows.append({"nid": nid, "stub": unknowns[nid],
                      "suggestion": suggestion, "status": status})
 
@@ -122,9 +126,10 @@ def main():
         for row in rows:
             print("%-12s %-40s %-12s %s" % (
                 row["nid"], row["stub"][:40], row["status"], row["suggestion"]))
-        print("%d unknowns, %d suggestions (%d already implemented)" % (
+        print("%d unknowns, %d suggestions (%d already implemented, %d not applicable)" % (
             len(rows), sum(1 for r in rows if r["suggestion"]),
-            sum(1 for r in rows if r["status"] == "already-implemented")))
+            sum(1 for r in rows if r["status"] == "already-implemented"),
+            sum(1 for r in rows if r["status"] == "not-applicable")))
     return 1 if failures else 0
 
 
