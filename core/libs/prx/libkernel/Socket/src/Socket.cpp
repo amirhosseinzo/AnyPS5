@@ -17,13 +17,10 @@ int APS5_VABI inet_pton_nid_postfix(int af, const char* src, void* dst) {
 }
 
 int APS5_VABI select_nid_postfix(int nfds, void* readfds, void* writefds, void* exceptfds, const void* timeout) {
- (void)nfds;
- (void)readfds;
- (void)writefds;
- (void)exceptfds;
- (void)timeout;
- NotImplemented_nid_no_patch(__func__);
- return 0;
+    (void)nfds; (void)readfds; (void)writefds; (void)exceptfds; (void)timeout;
+    // TODO: Map guest fds to host fds and call host select
+    // LIE: Always return 0 (no fds ready) instead of blocking
+    return 0;
 }
 
 }
