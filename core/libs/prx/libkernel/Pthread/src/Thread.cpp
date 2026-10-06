@@ -370,9 +370,9 @@ void APS5_VABI scePthreadYield() {
 }
 
 int APS5_VABI scePthreadCancel(Pthread thread) {
- (void)thread;
- NotImplemented_nid_no_patch(__func__);
- return 0;
+    APS5_LOG_OUT("scePthreadCancel: thread=%p", (void*)thread);
+    // TODO: Implement actual thread cancellation
+    return thread ? 0 : -1;
 }
 
 int APS5_VABI scePthreadEqual(Pthread thread1, Pthread thread2) {
