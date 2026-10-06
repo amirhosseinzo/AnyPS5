@@ -11,8 +11,6 @@ namespace ShaderRecompiler
 {
 namespace {
 
-    constexpr std::uint32_t FunctionLdsDwords = 8192u;
-
     [[noreturn]] void FailEmit(const std::string& reason) {
         throw std::runtime_error("SPIR-V module emission failed: " + reason);
     }
@@ -96,7 +94,8 @@ void EmitMemoryOffsets(SpirvEmitterState& state) {
 
 std::uint32_t LdsDwordCount(const SpirvEmitterState& state) {
     const auto* workgroup = ShaderWorkgroupInput(state);
-    return workgroup != nullptr ? workgroup->ldsSizeDwords : FunctionLdsDwords;
+    if (workgroup != nullptr) return workgroup->ldsSizeDwords;
+    return state.requirements.functionLdsDwords != 0u ? state.requirements.functionLdsDwords : FunctionLdsDwordLimit;
 }
 
 std::uint32_t EmitLdsLockPointer(SpirvEmitterState& state) {

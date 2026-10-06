@@ -1,3 +1,4 @@
+#include "prx/libSceAgcDriver/Execution/include/ProfileOutput.hpp"
 #include "prx/libSceAgcDriver/Graphics/include/Pipeline.hpp"
 #include "prx/libSceAgcDriver/Graphics/include/VertexInput.hpp"
 #include <algorithm>
@@ -94,7 +95,7 @@ Pipeline::Pipeline(const Context& context, const State& state, const VertexInput
     // A cached pipeline may outlive its device's teardown (see ClearCachedPipelines); it must not keep
     // the buffer pool, which is reset with the device, alive past it.
     this->context.bufferPool.reset();
-    Require(state.blends.size() == (state.colors.empty() ? 0u : state.colors.back().slot + 1u) && state.colors.size() <= state.blends.size(), "blend states do not match decoded color state");
+    Require(state.blends.size() == (state.colors.empty() ? 0u : state.colors.back().exportIndex + 1u) && state.colors.size() <= state.blends.size(), "blend states do not match decoded color state");
     Require(state.blends.size() <= context.limits.maxColorAttachments, "color targets exceed device attachment limits");
     Require(state.hasColorTarget || (context.limits.framebufferNoAttachmentsSampleCounts & VK_SAMPLE_COUNT_1_BIT) != 0, "device does not support single-sample rendering without attachments");
     Require(!depthBounds || context.depthBounds, "device does not support the depth bounds test");
@@ -151,7 +152,7 @@ Pipeline::Pipeline(const Context& context, const State& state, const VertexInput
             color.initialLayout = attachmentLayout;
             color.finalLayout = attachmentLayout;
             colors.push_back(color);
-            references.at(state.colors[index].slot) = {index, attachmentLayout};
+            references.at(state.colors[index].exportIndex) = {index, attachmentLayout};
         }
         VkSubpassDescription subpass{};
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -402,7 +403,7 @@ std::vector<std::byte> pipelineKey(const Context& context, const State& state, c
     append(key, state.colors.size());
     for (const auto& color : state.colors) append(key, color.format);
     if (state.blends.size() != state.colors.size()) {
-        for (const auto& color : state.colors) append(key, color.slot);
+        for (const auto& color : state.colors) append(key, color.exportIndex);
     }
     append(key, state.depth.has_value());
     if (state.depth) {
@@ -499,7 +500,7 @@ void reportPipelines(PipelineStore& store) {
     if (now - store.lastReport < std::chrono::seconds(10)) return;
     store.lastReport = now;
     const auto lookups = store.hits + store.misses + store.uncached;
-    std::fprintf(stderr, "[pipecache] %llu lookups over 10 s: %llu hits (%.0f%%), %llu misses, %llu private (no variant id), %llu evicted, %zu cached\n", static_cast<unsigned long long>(lookups), static_cast<unsigned long long>(store.hits), lookups != 0 ? 100.0 * static_cast<double>(store.hits) / static_cast<double>(lookups) : 0.0, static_cast<unsigned long long>(store.misses), static_cast<unsigned long long>(store.uncached), static_cast<unsigned long long>(store.evicted), store.entries.size());
+    AgcDriver::ProfilePrint_nid_no_patch( "[pipecache] %llu lookups over 10 s: %llu hits (%.0f%%), %llu misses, %llu private (no variant id), %llu evicted, %zu cached\n", static_cast<unsigned long long>(lookups), static_cast<unsigned long long>(store.hits), lookups != 0 ? 100.0 * static_cast<double>(store.hits) / static_cast<double>(lookups) : 0.0, static_cast<unsigned long long>(store.misses), static_cast<unsigned long long>(store.uncached), static_cast<unsigned long long>(store.evicted), store.entries.size());
     store.hits = store.misses = store.uncached = store.evicted = 0;
 }
 

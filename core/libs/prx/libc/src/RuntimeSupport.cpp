@@ -93,6 +93,10 @@ unsigned int APS5_VABI _Atomic_load_4_nid_postfix(volatile unsigned int* target,
     return GccAtomicLoad(target);
 }
 
+std::intmax_t APS5_VABI strtoimax_nid_postfix(const char* str, char** endptr, int base) {
+    return std::strtoimax(str, endptr, base);
+}
+
 std::uintmax_t APS5_VABI strtoumax_nid_postfix(const char* str, char** endptr, int base) {
     return std::strtoumax(str, endptr, base);
 }
@@ -136,11 +140,6 @@ void APS5_VABI _Locksyslock_nid_postfix() {
 
 void APS5_VABI _Unlocksyslock_nid_postfix() {
     g_sysLock.unlock();
-}
-
-int APS5_VABI snwprintf_s() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
 }
 
 }

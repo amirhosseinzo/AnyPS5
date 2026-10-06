@@ -46,6 +46,7 @@ private:
     void writeRawU32(const RdnaOperand& operand, IrU32 value);
     IrF32 applyF32ResultModifiers(const RdnaOperand& operand, IrF32 value);
     IrF32 applyF16ResultModifiers(const RdnaOperand& operand, IrF32 value);
+    IrU32 clampF16Bits(const RdnaOperand& operand, IrU32 bits);
     void writeOperand(const RdnaOperand& operand, IrValue* value);
     IrU32 packHalf2x16(IrF32 low, IrF32 high);
     void write16Bits(const RdnaOperand& operand, IrU32 value);
@@ -79,13 +80,14 @@ private:
     IrValue* getScalarAddressResource(std::uint32_t base);
     IrValue* getImageResource(const MemoryInfo& memory);
     IrValue* getSamplerResource(const MemoryInfo& memory);
-    IrValue* makeImageAddress(const RdnaInstruction& inst, const RdnaOperand& base);
+    IrValue* makeImageAddress(const RdnaInstruction& inst, const RdnaOperand& base, std::uint32_t fragmentOffset = 0u);
     IrValue* constructU32x4(const RdnaOperand& base, std::uint32_t count);
     void writeImageComponents(const RdnaOperand& dst, IrValue* value, const MemoryInfo& memory, std::uint32_t componentLimit);
     BufferAddress readBufferAddress(const RdnaInstruction& inst);
     IrU32 widenSubdword(IrValue* value, std::uint32_t bits, bool sign);
     IrValue* narrowSubdword(IrU32 value, std::uint32_t bits);
     bool sLoad(const RdnaInstruction& inst, bool raw);
+    bool sScratchLoad(const RdnaInstruction& inst);
     bool bufferLoad(const RdnaInstruction& inst);
     bool bufferLoadFormatD16(const RdnaInstruction& inst);
     bool bufferStoreFormatD16(const RdnaInstruction& inst);
@@ -99,6 +101,7 @@ private:
     bool imageGetResinfo(const RdnaInstruction& inst);
     bool imageGetLod(const RdnaInstruction& inst);
     bool imageLoad(const RdnaInstruction& inst);
+    bool imageMsaaLoad(const RdnaInstruction& inst);
     bool imageStore(const RdnaInstruction& inst);
     bool imageSample(const RdnaInstruction& inst);
     bool imageGather(const RdnaInstruction& inst);
@@ -114,13 +117,14 @@ private:
     bool dsAtomic64(const RdnaInstruction& inst, IrOpcode opcode, bool returnsValue);
     bool dsAppendConsume(const RdnaInstruction& inst, IrOpcode opcode);
     bool dsAddtid(const RdnaInstruction& inst, bool write);
-    bool globalLoadAddtid(const RdnaInstruction& inst);
+    bool globalAddtid(const RdnaInstruction& inst, bool write);
     bool dsSwizzleB32(const RdnaInstruction& inst);
     bool dsBpermuteB32(const RdnaInstruction& inst);
     bool dsPermuteB32(const RdnaInstruction& inst);
     IrF32 selectF32(IrU1 condition, IrF32 trueValue, IrF32 falseValue);
     IrU32 convertF32ToU32Saturated(IrF32 value, float upperBound, float safeUpper, std::uint32_t highResult);
     IrU32 convertF32ToI32Saturated(IrF32 value, float lowerBound, float upperBound, float safeUpper, std::uint32_t lowerResult, std::uint32_t upperResult);
+    IrU32 convertFlooredF32ToI32(IrF32 source, IrF32 floored);
     IrU32 packU16Lanes(IrU32 low, IrU32 high);
     void emitCompareResult(const RdnaInstruction& inst, IrU1 value, bool scalar, bool cmpx);
     void emitCompareConstant(const RdnaInstruction& inst, bool value, bool scalar, bool cmpx);
@@ -175,6 +179,7 @@ private:
     bool vCvtPknormF16(const RdnaInstruction& inst, bool signedValue);
     bool vSatPkU8I16(const RdnaInstruction& inst);
     bool vMulLegacyF32(const RdnaInstruction& inst, bool accumulate);
+    bool vMullitF32(const RdnaInstruction& inst);
     void emitFloat16ClassCompare(const RdnaInstruction& inst, bool cmpx);
     bool float64Operation(const RdnaInstruction& inst, IrOpcode opcode);
     void writeF64Result(const RdnaOperand& operand, IrValue& value);
@@ -183,6 +188,7 @@ private:
     bool vDivFixupF64(const RdnaInstruction& inst);
     bool vDot2cF32F16(const RdnaInstruction& inst);
     bool vDot2F32F16(const RdnaInstruction& inst);
+    bool float16Dot2(const RdnaInstruction& inst, const RdnaOperand& lhs, const RdnaOperand& rhs, IrU32 accumulator);
     bool vCubeidF32(const RdnaInstruction& inst);
     bool vCubescF32(const RdnaInstruction& inst);
     bool vCubetcF32(const RdnaInstruction& inst);
@@ -191,6 +197,8 @@ private:
     bool integer16Shift(const RdnaInstruction& inst, IrOpcode opcode, bool arithmetic);
     bool integer16Binary(const RdnaInstruction& inst, IrOpcode opcode, bool sign);
     bool integer16Mad(const RdnaInstruction& inst, bool sign, bool wide);
+    IrU32 saturateU16Result(const RdnaInstruction& inst, const IrU32& value, bool sign);
+    IrU32 wideAdd(const RdnaInstruction& inst, const IrU32& low, const IrU32& high, const IrU32& addend, bool sign);
     bool vAddSubNcI32(const RdnaInstruction& inst, bool subtract);
     bool integer16Ternary(const RdnaInstruction& inst, IrOpcode opcode, bool sign);
     bool vMed3I16(const RdnaInstruction& inst);
@@ -228,6 +236,7 @@ private:
     bool bfmB32(const RdnaInstruction& inst);
     IrU32 rightMask32(IrU32 count);
     IrU64 rightMask64(IrU32 count);
+    IrU32 extractBits32(IrU32 source, IrU32 offset, IrU32 rawCount, bool sign);
     bool sBfmB64(const RdnaInstruction& inst);
     bool sBfeU32(const RdnaInstruction& inst, bool sign);
     bool sBfeU64(const RdnaInstruction& inst);
@@ -247,10 +256,11 @@ private:
     bool vCndmaskB32(const RdnaInstruction& inst);
     bool packB16(const RdnaInstruction& inst, bool high0, bool high1);
     void sSubvectorLoop(const RdnaInstruction& inst, bool begin);
-    void sSaveexec(const RdnaInstruction& inst, IrOpcode operation, bool negateExec, bool negateSource, bool write64, bool negateResult = false, bool writeDestination = true);
+    void sSaveexec(const RdnaInstruction& inst, IrOpcode operation, bool negateExec, bool negateSource, bool write64, bool negateResult = false, bool writeResult = false);
     void addU32(const RdnaInstruction& inst, bool vector, bool useCarryIn);
     void subU32(const RdnaInstruction& inst, bool vector, bool reverse);
     void subbU32(const RdnaInstruction& inst, bool vector, bool reverse);
+    bool vAddSubNcU32(const RdnaInstruction& inst, bool subtract, bool reverse);
     void sAbsdiffI32(const RdnaInstruction& inst);
     void sAddSubI32(const RdnaInstruction& inst, bool subtract);
     void sLshlAddU32(const RdnaInstruction& inst, std::uint32_t shiftAmount);

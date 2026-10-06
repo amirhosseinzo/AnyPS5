@@ -80,7 +80,7 @@ std::set<Domain::VirtualAddress> CodeInstructionCollector::Collect(const std::ve
     std::set<std::uint64_t> roots;
     std::map<std::uint64_t, std::uint64_t> functions;
     const auto addRoot = [&](std::uint64_t address) { if (isCode(address)) roots.insert(address); };
-    const auto addFunction = [&](std::uint64_t begin, std::uint64_t size) {
+    const auto addFunction = [&](std::uint64_t begin, std::uint64_t size, bool symbolAlias) {
         if (size == 0) return;
         if (!isCode(begin) || size > std::numeric_limits<std::uint64_t>::max() - begin)
             throw Domain::RelinkerException("Code analysis: invalid function range", begin);
@@ -95,8 +95,9 @@ std::set<Domain::VirtualAddress> CodeInstructionCollector::Collect(const std::ve
         }
         if (!mapped) throw Domain::RelinkerException("Code analysis: function is not file-backed", begin);
         const auto [position, inserted] = functions.emplace(begin, begin + size);
-        if (!inserted && position->second != begin + size)
+        if (!inserted && !symbolAlias && position->second != begin + size)
             throw Domain::RelinkerException("Code analysis: conflicting function ranges", begin);
+        position->second = std::max(position->second, begin + size);
         roots.insert(begin);
     };
     range(0, 64);
@@ -117,7 +118,7 @@ std::set<Domain::VirtualAddress> CodeInstructionCollector::Collect(const std::ve
             if ((bytes[offset + 4] & 15) == 2 && Io::ReadU16(bytes, offset + 6) != 0) {
                 const auto address = Io::ReadU64(bytes, offset + 8);
                 addRoot(address);
-                addFunction(address, Io::ReadU64(bytes, offset + 16));
+                addFunction(address, Io::ReadU64(bytes, offset + 16), true);
             }
         }
     }
@@ -169,7 +170,7 @@ std::set<Domain::VirtualAddress> CodeInstructionCollector::Collect(const std::ve
     }
     for (const auto& function : UnusedNidFilter::ReadExceptionFunctions(bytes, headers, pointers.Values, importSlots)) {
         if (function.End <= function.Begin) throw Domain::RelinkerException("Code analysis: invalid unwind function range", function.Begin);
-        addFunction(function.Begin, function.End - function.Begin);
+        addFunction(function.Begin, function.End - function.Begin, false);
         for (const auto target : function.ExtraTargets) addRoot(target);
     }
     if (roots.empty()) throw Domain::RelinkerException("Code analysis: no code entry points");

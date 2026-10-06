@@ -3,6 +3,7 @@
 #include <bit>
 #include <limits>
 #include <stdexcept>
+#include <string>
 
 namespace ShaderRecompiler {
 
@@ -58,6 +59,9 @@ constexpr MemoryOpcodeInfo smemOpcodes[] = {
     {0x02u, RdnaOpcode::SLoadDwordx4, 4, 32, false, false, false},
     {0x03u, RdnaOpcode::SLoadDwordx8, 8, 32, false, false, false},
     {0x04u, RdnaOpcode::SLoadDwordx16, 16, 32, false, false, false},
+    {0x05u, RdnaOpcode::SScratchLoadDword, 1, 32, false, false, false},
+    {0x06u, RdnaOpcode::SScratchLoadDwordx2, 2, 32, false, false, false},
+    {0x07u, RdnaOpcode::SScratchLoadDwordx4, 4, 32, false, false, false},
     {0x08u, RdnaOpcode::SBufferLoadDword, 1, 32, false, false, false},
     {0x09u, RdnaOpcode::SBufferLoadDwordx2, 2, 32, false, false, false},
     {0x0au, RdnaOpcode::SBufferLoadDwordx4, 4, 32, false, false, false},
@@ -170,6 +174,7 @@ constexpr MemoryOpcodeInfo flatOpcodes[] = {
     {0x0eu, RdnaOpcode::FlatLoadDwordx4, 4, 32, false, false, false},
     {0x0fu, RdnaOpcode::FlatLoadDwordx3, 3, 32, false, false, false},
     {0x16u, RdnaOpcode::GlobalLoadDwordAddtid, 1, 32, false, false, false},
+    {0x17u, RdnaOpcode::GlobalStoreDwordAddtid, 1, 32, false, false, false},
     {0x18u, RdnaOpcode::FlatStoreByte, 1, 8, false, false, false},
     {0x1au, RdnaOpcode::FlatStoreShort, 1, 16, false, false, false},
     {0x1cu, RdnaOpcode::FlatStoreDword, 1, 32, false, false, false},
@@ -188,6 +193,7 @@ constexpr MemoryOpcodeInfo flatOpcodes[] = {
     {0x31u, RdnaOpcode::FlatAtomicCmpswap, 1, 32, false, false, false},
     {0x32u, RdnaOpcode::FlatAtomicAdd, 1, 32, false, false, false},
     {0x33u, RdnaOpcode::FlatAtomicSub, 1, 32, false, false, false},
+    {0x34u, RdnaOpcode::GlobalAtomicCsub, 1, 32, false, false, false},
     {0x35u, RdnaOpcode::FlatAtomicSmin, 1, 32, false, false, false},
     {0x36u, RdnaOpcode::FlatAtomicUmin, 1, 32, false, false, false},
     {0x37u, RdnaOpcode::FlatAtomicSmax, 1, 32, false, false, false},
@@ -431,6 +437,9 @@ RdnaOperand scalarDestination(std::uint32_t code) {
 
 RdnaOperand scalarDescriptorBase(std::uint32_t reg, std::uint32_t registerCount, const char* reason) {
     const auto operand = scalarSource(reg);
+    if (registerCount == 2u && operand.kind == RdnaOperandKind::VccLo) {
+        return operand;
+    }
     if (operand.kind != RdnaOperandKind::ScalarRegister || reg + (registerCount - 1u) > 105u) {
         throw std::runtime_error(reason);
     }
@@ -560,7 +569,8 @@ bool isFlatStoreOpcode(RdnaOpcode opcode) {
         case RdnaOpcode::FlatStoreDword:
         case RdnaOpcode::FlatStoreDwordx2:
         case RdnaOpcode::FlatStoreDwordx3:
-        case RdnaOpcode::FlatStoreDwordx4: return true;
+        case RdnaOpcode::FlatStoreDwordx4:
+        case RdnaOpcode::GlobalStoreDwordAddtid: return true;
         default: return false;
     }
 }
@@ -599,6 +609,7 @@ bool isFlatAtomicOpcode(RdnaOpcode opcode) {
         case RdnaOpcode::FlatAtomicFmaxX2:
         case RdnaOpcode::FlatAtomicIncX2:
         case RdnaOpcode::FlatAtomicDecX2:
+        case RdnaOpcode::GlobalAtomicCsub:
             return true;
         default: return false;
     }
@@ -817,6 +828,9 @@ RdnaInstruction DecodeRdnaFlat(std::uint32_t programCounter, std::span<const std
     if (lds != 0u || (atomic && seg == 1u) || seg == 3u) {
         throw std::runtime_error("unsupported FLAT modifiers or segment");
     }
+    if (info.opcode == RdnaOpcode::GlobalAtomicCsub && seg != 2u) {
+        throw std::runtime_error("global_atomic_csub is available only in the global segment");
+    }
 
     RdnaInstruction instruction{};
     instruction.programCounter = programCounter;
@@ -831,11 +845,12 @@ RdnaInstruction DecodeRdnaFlat(std::uint32_t programCounter, std::span<const std
     setRawWords(instruction, code, wordIndex, 2u);
 
     instruction.destination = d16Half(vectorRegister(isFlatStoreOpcode(instruction.op) ? data : vdst), instruction.op);
-    if (instruction.op == RdnaOpcode::GlobalLoadDwordAddtid) {
+    if (instruction.op == RdnaOpcode::GlobalLoadDwordAddtid || instruction.op == RdnaOpcode::GlobalStoreDwordAddtid) {
+        const std::string name = instruction.op == RdnaOpcode::GlobalLoadDwordAddtid ? "global_load_dword_addtid" : "global_store_dword_addtid";
         if (seg != 2u) {
-            throw std::runtime_error("global_load_dword_addtid is available only in the global segment");
+            throw std::runtime_error(name + " is available only in the global segment");
         }
-        instruction.source0 = scalarDescriptorBase(saddr, 2u, "global_load_dword_addtid supports only an SGPR pair as base address");
+        instruction.source0 = scalarDescriptorBase(saddr, 2u, (name + " supports only an SGPR pair as base address").c_str());
         instruction.sourceCount = 1;
         return instruction;
     }

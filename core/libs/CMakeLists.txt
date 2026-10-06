@@ -118,17 +118,6 @@ foreach(LIB_DIR ${LIBS_DIRS})
     endif()
 endforeach()
 
-set(LIBCOHTML_PATCHED ${PATCHED_DIR}/libcohtml.prx)
-set(LIBCOHTML_PROSPERO_PATCHED ${PATCHED_DIR}/libcohtml.Prospero.prx)
-add_custom_command(
-        OUTPUT ${LIBCOHTML_PROSPERO_PATCHED}
-        COMMAND ${CMAKE_COMMAND} -E copy "${LIBCOHTML_PATCHED}" "${LIBCOHTML_PROSPERO_PATCHED}"
-        DEPENDS ${LIBCOHTML_PATCHED}
-        VERBATIM
-)
-add_custom_target(libcohtml_prospero DEPENDS ${LIBCOHTML_PROSPERO_PATCHED})
-list(APPEND PATCHED_OUTPUTS ${LIBCOHTML_PROSPERO_PATCHED})
-
 add_custom_target(libs DEPENDS ${PATCHED_OUTPUTS})
 
 if(BUILD_TESTING)
