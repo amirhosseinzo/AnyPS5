@@ -165,7 +165,7 @@ int APS5_VABI sceKernelGetModuleInfoFromAddr(std::uint64_t address, int flags, M
         throw std::invalid_argument("sceKernelGetModuleInfoFromAddr: unsupported st_size " + std::to_string(info->st_size));
 #ifdef _WIN32
     (void)address;
-    NotImplemented_nid_no_patch(__func__);
+    APS5_LOG_OUT("sceKernelGetModuleInfoFromAddr called on Windows (stub)");
     return 0;
 #else
     Dl_info symbol{};

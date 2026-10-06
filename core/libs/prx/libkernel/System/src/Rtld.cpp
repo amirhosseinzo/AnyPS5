@@ -35,15 +35,13 @@ void APS5_VABI sceKernelRtldSetApplicationHeapAPI(void* api[]) {
 }
 
 int APS5_VABI sceKernelRtldThreadAtexitDecrement(uint64_t* c) {
- (void)c;
- NotImplemented_nid_no_patch(__func__);
- return 0;
+    if (c) --(*c);
+    return 0;
 }
 
 int APS5_VABI sceKernelRtldThreadAtexitIncrement(uint64_t* c) {
- (void)c;
- NotImplemented_nid_no_patch(__func__);
- return 0;
+    if (c) ++(*c);
+    return 0;
 }
 
 void APS5_VABI sceKernelSetThreadAtexitCount(get_thread_atexit_count_func_t func) {

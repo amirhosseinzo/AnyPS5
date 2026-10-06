@@ -324,11 +324,11 @@ int APS5_VABI sceKernelQueryMemoryProtection(void* addr, void** start, void** en
 }
 
 int APS5_VABI sceKernelIsStack(void* addr, void** start, void** end) {
- (void)addr;
- (void)start;
- (void)end;
- NotImplemented_nid_no_patch(__func__);
- return 0;
+    (void)addr;
+    (void)start;
+    (void)end;
+    APS5_LOG_OUT("sceKernelIsStack called");
+    return 0;
 }
 
 int APS5_VABI sceKernelAvailableFlexibleMemorySize(size_t* size) {
