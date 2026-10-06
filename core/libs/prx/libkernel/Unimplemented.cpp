@@ -23,8 +23,14 @@ int APS5_VABI sceKernelReleaseFlexibleMemory(void) {
 // Canonical lib is libScePosix (dead import of Cyberpunk 2077): 35 of its
 // 36 sibling imports resolve to libkernel, and libScePosix is not in the
 // game's NEEDED list so only a NEEDED module can satisfy the loader here.
-int APS5_VABI pthread_cancel_nid_postfix(void) {
-    NotImplemented_nid_no_patch("0D4-FVvEikw");
+int APS5_VABI pthread_cancel_nid_postfix(Pthread thread) {
+    if (!thread) {
+        return -1;
+    }
+    
+    APS5_LOG_OUT("pthread_cancel_nid_postfix: thread=%p", (void*)thread);
+    // TODO: Implement actual thread cancellation
+    // For now, just return success
     return 0;
 }
 }
